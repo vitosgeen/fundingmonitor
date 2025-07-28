@@ -6,6 +6,7 @@ A real-time funding rate monitoring application for centralized exchanges (CEX) 
 
 - **Multi-Exchange Support**: Currently supports Binance, Bybit, and OKX
 - **Real-time Monitoring**: Automatic refresh every 30 seconds
+- **Historical Data Logging**: Automatic logging of funding rates to individual files per trading pair
 - **Modern Web Interface**: Built with Tailwind CSS and responsive design
 - **Advanced Filtering**: Filter by exchange, symbol, and funding rate direction
 - **Sorting Options**: Sort by funding rate, symbol, exchange, or next funding time
@@ -59,11 +60,13 @@ The application uses a YAML configuration file (`config.yaml`):
 
 ```yaml
 port: "8080"
+logging_interval: 1  # minutes
+log_directory: "funding_logs"
 
 exchanges:
   binance:
     enabled: true
-    base_url: "https://api.binance.com"
+    base_url: "https://fapi.binance.com"
     api_key: ""      # Optional
     api_secret: ""   # Optional
     
@@ -74,7 +77,7 @@ exchanges:
     api_secret: ""   # Optional
     
   okx:
-    enabled: true
+    enabled: false   # Disabled due to API complexity
     base_url: "https://www.okx.com"
     api_key: ""      # Optional
     api_secret: ""   # Optional
@@ -142,6 +145,104 @@ Response:
 }
 ```
 
+### Logging Endpoints
+
+#### Get All Log Files
+```
+GET /api/logs
+```
+Returns a list of all available log files with metadata.
+
+#### Get Symbol Logs
+```
+GET /api/logs/{symbol}
+GET /api/logs/{symbol}?date=28-07-2025
+```
+Returns historical funding rate data for a specific symbol. Optionally specify a date parameter in DD-MM-YYYY format.
+
+Example response:
+```json
+{
+  "timestamp": "2025-07-28T21:06:53.528617398+03:00",
+  "symbol": "BTCUSDT",
+  "rates": [
+    {
+      "symbol": "BTCUSDT",
+      "exchange": "binance",
+      "funding_rate": 0.0001,
+      "next_funding_time": "2025-07-29T03:00:00+03:00",
+      "timestamp": "2025-07-28T21:06:53.506090985+03:00",
+      "mark_price": 117493.8,
+      "index_price": 117513.18136364,
+      "last_funding_rate": 0.0001
+    }
+  ]
+}
+```
+
+## Logging System
+
+The application automatically logs funding rates to individual files for each trading pair. This provides historical data tracking and analysis capabilities.
+
+### Log File Structure
+- **Location**: `funding_logs/` directory
+- **Organization**: `funding_logs/{SYMBOL}/{DATE}.log` (e.g., `funding_logs/BTCUSDT/28-07-2025.log`)
+- **Format**: JSON with timestamp, symbol, and rates from all exchanges
+- **Frequency**: Every minute (configurable)
+
+### Configuration
+```yaml
+logging_interval: 1  # minutes
+log_directory: "funding_logs"
+```
+
+### Log File Example
+```json
+{
+  "timestamp": "2025-07-28T21:06:53.528617398+03:00",
+  "symbol": "BTCUSDT",
+  "rates": [
+    {
+      "symbol": "BTCUSDT",
+      "exchange": "binance",
+      "funding_rate": 0.0001,
+      "next_funding_time": "2025-07-29T03:00:00+03:00",
+      "timestamp": "2025-07-28T21:06:53.506090985+03:00",
+      "mark_price": 117493.8,
+      "index_price": 117513.18136364,
+      "last_funding_rate": 0.0001
+    },
+    {
+      "symbol": "BTCUSDT",
+      "exchange": "bybit",
+      "funding_rate": 0.0001,
+      "next_funding_time": "2025-07-29T03:00:00+03:00",
+      "timestamp": "2025-07-28T21:06:53.175859664+03:00",
+      "mark_price": 117500.1,
+      "index_price": 117513.36
+    }
+  ]
+}
+```
+
+### Log Management
+
+The application includes a cleanup script to manage log files and disk space:
+
+```bash
+# Show log statistics
+./cleanup_logs.sh -s
+
+# List all log files with sizes
+./cleanup_logs.sh -l
+
+# Clean up logs older than 7 days (default)
+./cleanup_logs.sh
+
+# Clean up logs older than 30 days
+./cleanup_logs.sh -d 30
+```
+
 ## Web Interface Features
 
 ### Dashboard
@@ -167,15 +268,26 @@ Response:
 fundingmonitor/
 ├── main.go              # Application entry point
 ├── types.go             # Core types and interfaces
-├── exchanges/           # Exchange implementations
-│   ├── binance.go      # Binance exchange
-│   ├── bybit.go        # Bybit exchange
-│   └── okx.go          # OKX exchange
+├── binance.go           # Binance exchange implementation
+├── bybit.go             # Bybit exchange implementation
+├── okx.go               # OKX exchange implementation
 ├── static/              # Web interface
 │   └── index.html      # Main web page
-├── config.yaml         # Configuration file
-├── go.mod              # Go module file
-└── README.md           # This file
+├── funding_logs/        # Historical data logs (auto-generated)
+│   ├── BTCUSDT/
+│   │   └── 28-07-2025.log
+│   ├── ETHUSDT/
+│   │   └── 28-07-2025.log
+│   └── ... (one directory per trading pair)
+├── config.yaml          # Configuration file
+├── go.mod               # Go module file
+├── .gitignore           # Git ignore rules
+├── Dockerfile           # Docker configuration
+├── docker-compose.yml   # Docker Compose setup
+├── Makefile             # Build and deployment scripts
+├── run.sh               # Quick start script
+├── cleanup_logs.sh      # Log cleanup and management script
+└── README.md            # This file
 ```
 
 ### Adding New Exchanges

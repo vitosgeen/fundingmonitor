@@ -1,4 +1,6 @@
 port: "8080"
+logging_interval: 1  # minutes
+log_directory: "funding_logs"
 
 exchanges:
   binance:
@@ -16,5 +18,29 @@ exchanges:
   okx:
     enabled: false
     base_url: "https://www.okx.com"
+    api_key: ""
+    api_secret: ""
+    
+  mexc:
+    enabled: true
+    base_url: "https://contract.mexc.com"
+    api_key: ""
+    api_secret: ""
+    
+  bitget:
+    enabled: true
+    base_url: "https://api.bitget.com"
+    api_key: ""
+    api_secret: ""
+    
+  gate:
+    enabled: true
+    base_url: "https://api.gateio.ws"
+    api_key: ""
+    api_secret: ""
+    
+  deribit:
+    enabled: true
+    base_url: "https://www.deribit.com"
     api_key: ""
     api_secret: "" 

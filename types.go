@@ -33,8 +33,10 @@ type ExchangeConfig struct {
 
 // Config represents the main application configuration
 type Config struct {
-	Port      string                    `mapstructure:"port"`
-	Exchanges map[string]ExchangeConfig `mapstructure:"exchanges"`
+	Port            string                    `mapstructure:"port"`
+	Exchanges       map[string]ExchangeConfig `mapstructure:"exchanges"`
+	LoggingInterval int                       `mapstructure:"logging_interval"` // in minutes
+	LogDirectory    string                    `mapstructure:"log_directory"`
 }
 
 // FundingRateResponse represents the API response structure
