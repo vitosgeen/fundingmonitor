@@ -133,6 +133,18 @@ func loadConfig() (*Config, error) {
 			"api_key":   "",
 			"api_secret": "",
 		},
+		"xt": map[string]interface{}{
+			"enabled":   true,
+			"base_url":  "https://api.xt.com",
+			"api_key":   "",
+			"api_secret": "",
+		},
+		"kucoin": map[string]interface{}{
+			"enabled":   true,
+			"base_url":  "https://api-futures.kucoin.com",
+			"api_key":   "",
+			"api_secret": "",
+		},
 	})
 
 	if err := viper.ReadInConfig(); err != nil {
@@ -171,6 +183,10 @@ func (fm *FundingMonitor) initializeExchanges() error {
 			exchange = NewGateExchange(exchangeConfig, fm.logger)
 		case "deribit":
 			exchange = NewDeribitExchange(exchangeConfig, fm.logger)
+		case "xt":
+			exchange = NewXTExchange(exchangeConfig, fm.logger)
+		case "kucoin":
+			exchange = NewKuCoinExchange(exchangeConfig, fm.logger)
 		default:
 			fm.logger.Warnf("Unknown exchange: %s", name)
 			continue
