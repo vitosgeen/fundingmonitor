@@ -260,7 +260,12 @@
                 const nextFundingTime = new Date(rate.next_funding_time).toLocaleString();
                 
                 row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${rate.symbol}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <a href="/pair.html?symbol=${encodeURIComponent(rate.symbol)}&exchange=${encodeURIComponent(rate.exchange)}" 
+                           class="text-blue-600 hover:text-blue-800 hover:underline">
+                            ${rate.symbol}
+                        </a>
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${rate.exchange.toUpperCase()}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${fundingRateClass}">
                         ${(rate.funding_rate * 100).toFixed(4)}%
