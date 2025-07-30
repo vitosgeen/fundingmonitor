@@ -158,7 +158,7 @@
 
         async function loadPairData() {
             try {
-                const response = await fetch('/api/funding');
+                const response = await fetch(`/api/logs/${symbol}`);
                 const data = await response.json();
                 
                 // Find the specific pair data

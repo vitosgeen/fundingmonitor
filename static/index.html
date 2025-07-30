@@ -132,6 +132,42 @@
                 </div>
             </div>
 
+            <!-- Alert Settings -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Funding Rate Alerts</h3>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="alertEnabled" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Enable Alerts</span>
+                        </label>
+                        <button id="testAlertBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm">
+                            Test Alert
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Alert Threshold (%)</label>
+                        <input type="number" id="alertThreshold" value="0.1" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Alert when funding rate changes by this percentage</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Alert Sound</label>
+                        <select id="alertSound" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="browser">Browser Default</option>
+                            <option value="custom">Custom Sound</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Alert History</label>
+                        <div id="alertHistory" class="text-sm text-gray-600 max-h-20 overflow-y-auto">
+                            No alerts yet
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Funding Rates Table -->
             <div class="bg-white rounded-lg shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
@@ -161,6 +197,10 @@
     <script>
         let fundingData = [];
         let filteredData = [];
+        let previousFundingData = new Map(); // Store previous funding rates
+        let alertThreshold = 0.001; // 0.1% change threshold for alerts
+        let alertEnabled = true;
+        let alertHistory = [];
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
@@ -175,6 +215,15 @@
             document.getElementById('symbolFilter').addEventListener('input', filterData);
             document.getElementById('fundingFilter').addEventListener('change', filterData);
             document.getElementById('sortBy').addEventListener('change', sortData);
+            
+            // Alert controls
+            document.getElementById('alertEnabled').addEventListener('change', function() {
+                alertEnabled = this.checked;
+            });
+            document.getElementById('alertThreshold').addEventListener('change', function() {
+                alertThreshold = parseFloat(this.value) / 100; // Convert percentage to decimal
+            });
+            document.getElementById('testAlertBtn').addEventListener('click', testAlert);
         }
 
         async function loadFundingRates() {
@@ -182,7 +231,21 @@
                 const response = await fetch('/api/funding');
                 const data = await response.json();
                 
-                fundingData = data.rates || [];
+                const newFundingData = data.rates || [];
+                
+                // Check for funding rate changes and trigger alerts
+                if (alertEnabled && previousFundingData.size > 0) {
+                    checkFundingRateChanges(newFundingData);
+                }
+                
+                // Update previous data for next comparison
+                previousFundingData.clear();
+                newFundingData.forEach(rate => {
+                    const key = `${rate.symbol}-${rate.exchange}`;
+                    previousFundingData.set(key, rate.funding_rate);
+                });
+                
+                fundingData = newFundingData;
                 updateStats();
                 filterData();
                 updateLastUpdate();
@@ -285,6 +348,99 @@
             const now = new Date();
             document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
         }
+
+        function checkFundingRateChanges(newData) {
+            const alerts = [];
+            
+            newData.forEach(rate => {
+                const key = `${rate.symbol}-${rate.exchange}`;
+                const previousRate = previousFundingData.get(key);
+                
+                if (previousRate !== undefined) {
+                    const change = Math.abs(rate.funding_rate - previousRate);
+                    const changePercent = change * 100;
+                    
+                    if (change >= alertThreshold) {
+                        const direction = rate.funding_rate > previousRate ? 'increased' : 'decreased';
+                        const alert = {
+                            symbol: rate.symbol,
+                            exchange: rate.exchange,
+                            oldRate: previousRate,
+                            newRate: rate.funding_rate,
+                            change: changePercent,
+                            direction: direction,
+                            timestamp: new Date()
+                        };
+                        alerts.push(alert);
+                    }
+                }
+            });
+            
+            if (alerts.length > 0) {
+                showAlerts(alerts);
+            }
+        }
+
+        function showAlerts(alerts) {
+            alerts.forEach(alert => {
+                // Browser notification
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('Funding Rate Alert', {
+                        body: `${alert.symbol} (${alert.exchange}) ${alert.direction} by ${alert.change.toFixed(4)}%`,
+                        icon: '/favicon.ico'
+                    });
+                }
+                
+                // Browser alert (fallback)
+                if (document.getElementById('alertSound').value === 'browser') {
+                    alert(`🚨 Funding Rate Alert!\n\n${alert.symbol} (${alert.exchange.toUpperCase()})\n${alert.direction} by ${alert.change.toFixed(4)}%\n\nPrevious: ${(alert.oldRate * 100).toFixed(4)}%\nCurrent: ${(alert.newRate * 100).toFixed(4)}%`);
+                }
+                
+                // Add to alert history
+                addToAlertHistory(alert);
+            });
+        }
+
+        function addToAlertHistory(alert) {
+            const timestamp = alert.timestamp.toLocaleTimeString();
+            const message = `${timestamp}: ${alert.symbol} (${alert.exchange}) ${alert.direction} by ${alert.change.toFixed(4)}%`;
+            
+            alertHistory.unshift(message);
+            if (alertHistory.length > 10) {
+                alertHistory.pop();
+            }
+            
+            updateAlertHistory();
+        }
+
+        function updateAlertHistory() {
+            const historyDiv = document.getElementById('alertHistory');
+            if (alertHistory.length === 0) {
+                historyDiv.innerHTML = 'No alerts yet';
+            } else {
+                historyDiv.innerHTML = alertHistory.map(msg => `<div class="text-xs mb-1">${msg}</div>`).join('');
+            }
+        }
+
+        function testAlert() {
+            const testAlert = {
+                symbol: 'TEST',
+                exchange: 'test',
+                oldRate: 0.001,
+                newRate: 0.002,
+                change: 0.1,
+                direction: 'increased',
+                timestamp: new Date()
+            };
+            showAlerts([testAlert]);
+        }
+
+        // Request notification permission on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        });
     </script>
 </body>
 </html> 
