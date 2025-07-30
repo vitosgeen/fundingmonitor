@@ -1,16 +1,35 @@
-.PHONY: build run test clean docker-build docker-run help
+.PHONY: build run test clean docker-build docker-run help stop status build-clean run-clean
 
 # Default target
-all: build
+all: build-clean
 
-# Build the application
+# Build the application (clean architecture)
+build-clean:
+	@echo "Building funding monitor (clean architecture)..."
+	go build -o fundingmonitor_clean main_clean.go
+
+# Build the application (legacy)
 build:
-	@echo "Building funding monitor..."
+	@echo "Building funding monitor (legacy)..."
 	go build -o fundingmonitor .
 
-# Run the application
+# Run the application (clean architecture)
+run-clean: build-clean
+	@echo "Starting funding monitor (clean architecture)..."
+	@echo "Web interface: http://localhost:8080"
+	@echo "API endpoints:"
+	@echo "  - GET /api/funding"
+	@echo "  - GET /api/funding/{exchange}"
+	@echo "  - GET /api/health"
+	@echo "  - GET /api/logs"
+	@echo "  - GET /api/logs/{symbol}"
+	@echo ""
+	@echo "Press Ctrl+C to stop"
+	./fundingmonitor_clean
+
+# Run the application (legacy)
 run: build
-	@echo "Starting funding monitor..."
+	@echo "Starting funding monitor (legacy)..."
 	@echo "Web interface: http://localhost:8080"
 	@echo "API endpoints:"
 	@echo "  - GET /api/funding"
@@ -19,15 +38,55 @@ run: build
 	@echo ""
 	./fundingmonitor
 
+# Stop the running application
+stop:
+	@echo "Stopping funding monitor..."
+	@if pgrep -f "fundingmonitor" > /dev/null; then \
+		pkill -f "fundingmonitor"; \
+		echo "Application stopped."; \
+	else \
+		echo "No funding monitor process found."; \
+	fi
+
+# Check application status
+status:
+	@echo "Checking funding monitor status..."
+	@if pgrep -f "fundingmonitor" > /dev/null; then \
+		echo "✅ Funding monitor is running"; \
+		ps aux | grep fundingmonitor | grep -v grep; \
+	else \
+		echo "❌ Funding monitor is not running"; \
+	fi
+
 # Run tests
 test:
 	@echo "Running tests..."
-	go test -v
+	./run_tests.sh all
+
+# Run unit tests only
+test-unit:
+	@echo "Running unit tests..."
+	./run_tests.sh unit
+
+# Run integration tests only
+test-integration:
+	@echo "Running integration tests..."
+	./run_tests.sh integration
+
+# Run E2E tests only
+test-e2e:
+	@echo "Running E2E tests..."
+	./run_tests.sh e2e
 
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -f fundingmonitor
+	rm -f fundingmonitor fundingmonitor_clean
+
+# Clean logs
+clean-logs:
+	@echo "Cleaning log files..."
+	rm -rf funding_logs/*
 
 # Build Docker image
 docker-build:
@@ -68,14 +127,22 @@ lint:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  build           - Build the application"
-	@echo "  run             - Build and run the application"
-	@echo "  test            - Run tests"
-	@echo "  clean           - Clean build artifacts"
-	@echo "  docker-build    - Build Docker image"
-	@echo "  docker-run      - Run with Docker"
-	@echo "  docker-compose  - Run with docker-compose"
-	@echo "  deps            - Install dependencies"
-	@echo "  fmt             - Format code"
-	@echo "  lint            - Lint code"
-	@echo "  help            - Show this help" 
+	@echo "  build-clean      - Build the application (clean architecture)"
+	@echo "  build            - Build the application (legacy)"
+	@echo "  run-clean        - Build and run the application (clean architecture)"
+	@echo "  run              - Build and run the application (legacy)"
+	@echo "  stop             - Stop the running application"
+	@echo "  status           - Check application status"
+	@echo "  test             - Run all tests"
+	@echo "  test-unit        - Run unit tests only"
+	@echo "  test-integration - Run integration tests only"
+	@echo "  test-e2e         - Run E2E tests only"
+	@echo "  clean            - Clean build artifacts"
+	@echo "  clean-logs       - Clean log files"
+	@echo "  docker-build     - Build Docker image"
+	@echo "  docker-run       - Run with Docker"
+	@echo "  docker-compose   - Run with docker-compose"
+	@echo "  deps             - Install dependencies"
+	@echo "  fmt              - Format code"
+	@echo "  lint             - Lint code"
+	@echo "  help             - Show this help" 
