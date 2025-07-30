@@ -10,7 +10,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN go build -o fundingmonitor .
+RUN go build -o fundingmonitor_clean main_clean.go
 
 # Create final image
 FROM alpine:latest
@@ -21,7 +21,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/fundingmonitor .
+COPY --from=builder /app/fundingmonitor_clean ./fundingmonitor
 
 # Copy configuration and static files
 COPY --from=builder /app/config.yaml .

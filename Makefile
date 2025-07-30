@@ -101,12 +101,50 @@ docker-run: docker-build
 # Run with docker-compose
 docker-compose:
 	@echo "Running with docker-compose..."
-	docker-compose up --build
+	docker-compose up --build -d
 
 # Stop docker-compose
 docker-compose-down:
 	@echo "Stopping docker-compose..."
 	docker-compose down
+
+# Show docker-compose logs
+docker-logs:
+	@echo "Showing docker-compose logs..."
+	docker-compose logs -f
+
+# Show docker-compose status
+docker-status:
+	@echo "Docker-compose services status..."
+	docker-compose ps
+
+# Start ELK Stack
+elk-start:
+	@echo "Starting ELK Stack..."
+	docker-compose up -d elasticsearch logstash kibana
+	@echo "Waiting for Elasticsearch to be ready..."
+	@until curl -s http://localhost:9200 > /dev/null; do sleep 2; done
+	@echo "ELK Stack is ready!"
+	@echo "Kibana: http://localhost:5601"
+	@echo "Elasticsearch: http://localhost:9200"
+
+# Stop ELK Stack
+elk-stop:
+	@echo "Stopping ELK Stack..."
+	docker-compose stop elasticsearch logstash kibana
+
+# Show ELK logs
+elk-logs:
+	@echo "Showing ELK Stack logs..."
+	docker-compose logs -f elasticsearch logstash kibana
+
+# Check ELK health
+elk-health:
+	@echo "Checking ELK Stack health..."
+	@echo "Elasticsearch:"
+	@curl -s http://localhost:9200/_cluster/health | jq '.'
+	@echo "Kibana:"
+	@curl -s http://localhost:5601/api/status | jq '.'
 
 # Install dependencies
 deps:
@@ -141,7 +179,14 @@ help:
 	@echo "  clean-logs       - Clean log files"
 	@echo "  docker-build     - Build Docker image"
 	@echo "  docker-run       - Run with Docker"
-	@echo "  docker-compose   - Run with docker-compose"
+	@echo "  docker-compose   - Run with docker-compose (detached)"
+	@echo "  docker-compose-down - Stop docker-compose"
+	@echo "  docker-logs      - Show docker-compose logs"
+	@echo "  docker-status    - Show docker-compose status"
+	@echo "  elk-start        - Start ELK Stack (Elasticsearch, Logstash, Kibana)"
+	@echo "  elk-stop         - Stop ELK Stack"
+	@echo "  elk-logs         - Show ELK Stack logs"
+	@echo "  elk-health       - Check ELK Stack health"
 	@echo "  deps             - Install dependencies"
 	@echo "  fmt              - Format code"
 	@echo "  lint             - Lint code"

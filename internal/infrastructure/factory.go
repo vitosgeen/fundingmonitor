@@ -3,6 +3,8 @@ package infrastructure
 import (
 	"fundingmonitor/internal/domain"
 	"fundingmonitor/internal/usecase"
+	"os"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -61,4 +63,17 @@ func (f *ExchangeFactory) CreateExchanges(config *domain.Config) (map[string]dom
 // CreateUseCases creates all use cases
 func (f *ExchangeFactory) CreateUseCases(exchanges map[string]domain.ExchangeRepository, logRepo domain.LogRepository) *usecase.MultiExchangeUseCase {
 	return usecase.NewMultiExchangeUseCase(exchanges, logRepo)
-} 
+}
+
+// CreateLogRepository creates the appropriate log repository
+func (f *ExchangeFactory) CreateLogRepository(logDir string, logger *logrus.Logger) domain.LogRepository {
+	// Check if Elasticsearch is available
+	elasticsearchURL := os.Getenv("ELASTICSEARCH_URL")
+	if elasticsearchURL != "" {
+		logger.Info("Using Elasticsearch for logging")
+		return NewElasticsearchLogger(elasticsearchURL, logger)
+	}
+
+	logger.Info("Using file-based logging")
+	return NewFileLogger(logDir, logger)
+}

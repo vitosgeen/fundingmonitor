@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// Create log repository
-	logRepo := infrastructure.NewFileLogger(logDir, logger)
+	logRepo := factory.CreateLogRepository(logDir, logger)
 
 	// Create use cases
 	multiExchangeUseCase := factory.CreateUseCases(exchanges, logRepo)
