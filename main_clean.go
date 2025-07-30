@@ -19,7 +19,10 @@ import (
 func main() {
 	// Initialize logger
 	logger := logrus.New()
-	logger.SetFormatter(&logrus.JSONFormatter{})
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		DisableColors: true,
+	})
 	logger.SetLevel(logrus.InfoLevel)
 
 	// Load configuration
@@ -39,7 +42,7 @@ func main() {
 
 	// Initialize infrastructure
 	factory := infrastructure.NewExchangeFactory(logger)
-	
+
 	// Create exchanges
 	exchanges, err := factory.CreateExchanges(config)
 	if err != nil {
@@ -113,7 +116,7 @@ func startBackgroundLogging(useCase *usecase.MultiExchangeUseCase, logger *logru
 	if interval == 0 {
 		interval = 1 * time.Minute // default to 1 minute
 	}
-	
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -127,4 +130,4 @@ func startBackgroundLogging(useCase *usecase.MultiExchangeUseCase, logger *logru
 			}
 		}
 	}
-} 
+}
