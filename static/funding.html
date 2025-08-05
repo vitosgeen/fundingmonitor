@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funding Spread Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .funding-positive { color: #10B981; }
+        .funding-negative { color: #EF4444; }
+        .funding-neutral { color: #6B7280; }
+        .table-container { max-height: 70vh; overflow-y: auto; }
+        .loading { animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .exchange-logo {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            margin-right: 5px;
+            border-radius: 3px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 20px;
+            font-size: 12px;
+        }
+        .coin-logo {
+            width: 24px;
+            height: 24px;
+            display: inline-block;
+            margin-right: 8px;
+            border-radius: 50%;
+            font-weight: bold;
+            text-align: center;
+            line-height: 24px;
+            font-size: 12px;
+        }
+        .highlight-row {
+            background-color: rgba(147, 51, 234, 0.1);
+        }
+        .underlined {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center">
+                        <a href="/" class="flex items-center text-blue-600 hover:text-blue-700 mr-4">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Monitor
+                        </a>
+                        <i class="fas fa-chart-line text-blue-600 text-2xl mr-3"></i>
+                        <h1 class="text-2xl font-bold text-gray-900">Trading Pair Spread Monitor</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600" id="status">Connected</span>
+                        </div>
+                        <button id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-coins text-blue-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Total Trading Pairs</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="totalCoins">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exchange-alt text-green-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Total Exchanges</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="totalExchanges">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-arrow-up text-green-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Max Spread</p>
+                            <p class="text-2xl font-semibold text-gray-900" id="maxSpread">0%</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-clock text-yellow-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-500">Last Update</p>
+                            <p class="text-sm font-semibold text-gray-900" id="lastUpdate">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Trading Pair Filter</label>
+                        <input type="text" id="coinFilter" placeholder="Search trading pairs..." class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Min Spread (%)</label>
+                        <input type="number" id="minSpreadFilter" value="0" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+                        <select id="sortBy" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="maxSpread">Max Spread</option>
+                            <option value="coin">Trading Pair Name</option>
+                            <option value="exchanges">Number of Exchanges</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Show Only</label>
+                        <select id="showOnly" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">All Coins</option>
+                            <option value="positive">Positive Spread Only</option>
+                            <option value="negative">Negative Spread Only</option>
+                            <option value="meaningful">Meaningful Spread Only</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Funding Spread Table -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Trading Pair Spread Analysis</h3>
+                </div>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('coin')">
+                                    Trading Pairs <i class="fas fa-chevron-down ml-1"></i>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onclick="sortTable('maxSpread')">
+                                    Spread <i class="fas fa-question-circle ml-1"></i>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-yellow-500 text-white">B</div>
+                                        Binance <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-black text-white">BYBIT</div>
+                                        Bybit <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-light-blue-500 text-white">S</div>
+                                        BitGet <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-blue-500 text-white">G</div>
+                                        Gate.io <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-blue-500 text-white">M</div>
+                                        MEXC <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-green-500 text-white">K</div>
+                                        KuCoin <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div class="flex items-center">
+                                        <div class="exchange-logo bg-purple-500 text-white">D</div>
+                                        Deribit <i class="fas fa-chevron-down ml-1"></i>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="fundingTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let fundingData = [];
+        let filteredData = [];
+        let exchanges = ['binance', 'bybit', 'bitget', 'gate', 'mexc', 'kucoin', 'deribit'];
+        let exchangeNames = {
+            'binance': 'Binance',
+            'bybit': 'Bybit',
+            'bitget': 'BitGet',
+            'gate': 'Gate.io',
+            'mexc': 'MEXC',
+            'kucoin': 'KuCoin',
+            'deribit': 'Deribit'
+        };
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFundingRates();
+            setupEventListeners();
+            setInterval(loadFundingRates, 30000); // Refresh every 30 seconds
+        });
+
+        function setupEventListeners() {
+            document.getElementById('refreshBtn').addEventListener('click', loadFundingRates);
+            document.getElementById('coinFilter').addEventListener('input', filterData);
+            document.getElementById('minSpreadFilter').addEventListener('input', filterData);
+            document.getElementById('sortBy').addEventListener('change', filterData);
+            document.getElementById('showOnly').addEventListener('change', filterData);
+        }
+
+        async function loadFundingRates() {
+            try {
+                const response = await fetch('/api/funding');
+                const data = await response.json();
+                
+                fundingData = data.rates || [];
+                processFundingData();
+                updateStats();
+                filterData();
+                updateLastUpdate();
+                
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-green-500 rounded-full';
+            } catch (error) {
+                console.error('Error loading funding rates:', error);
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-red-500 rounded-full';
+            }
+        }
+
+        function processFundingData() {
+            // Group data by trading pair (base/quote combination)
+            const tradingPairData = {};
+            
+            fundingData.forEach(rate => {
+                // Extract trading pair (e.g., BTCUSDT -> BTC/USDT)
+                const tradingPair = extractTradingPair(rate.symbol);
+                
+                // Normalize the trading pair to ensure consistent grouping
+                const normalizedPair = normalizeTradingPair(tradingPair);
+                
+                if (!tradingPairData[normalizedPair]) {
+                    tradingPairData[normalizedPair] = {
+                        tradingPair: normalizedPair,
+                        originalSymbols: new Set(), // Track all original symbols for this pair
+                        exchanges: {},
+                        maxSpread: 0,
+                        minSpread: 0,
+                        nonZeroRates: [],
+                        availableExchanges: new Set()
+                    };
+                }
+                
+                tradingPairData[normalizedPair].originalSymbols.add(rate.symbol);
+                tradingPairData[normalizedPair].exchanges[rate.exchange] = rate.funding_rate;
+                tradingPairData[normalizedPair].availableExchanges.add(rate.exchange);
+                
+                // Only add non-zero rates to the array for spread calculation
+                if (rate.funding_rate !== 0) {
+                    tradingPairData[normalizedPair].nonZeroRates.push(rate.funding_rate);
+                }
+            });
+
+            // Calculate actual spread for each trading pair
+            Object.values(tradingPairData).forEach(pair => {
+                pair.availableExchanges = Array.from(pair.availableExchanges);
+                
+                if (pair.nonZeroRates.length >= 2) {
+                    const maxRate = Math.max(...pair.nonZeroRates);
+                    const minRate = Math.min(...pair.nonZeroRates);
+                    pair.maxSpread = maxRate;
+                    pair.minSpread = minRate;
+                    pair.actualSpread = maxRate - minRate;
+                } else {
+                    pair.maxSpread = 0;
+                    pair.minSpread = 0;
+                    pair.actualSpread = 0;
+                }
+            });
+
+            fundingData = Object.values(tradingPairData);
+        }
+
+        function extractTradingPair(symbol) {
+            // Common quote currencies
+            const quoteCurrencies = ['USDT', 'USDC', 'BUSD', 'TUSD', 'DAI', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'KRW', 'RUB', 'TRY', 'BRL', 'MXN', 'SGD', 'HKD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN', 'HRK', 'RUB', 'UAH', 'BYN', 'KZT', 'UZS', 'GEL', 'AMD', 'AZN', 'MDL', 'TJS', 'TMT', 'UZS', 'GEL', 'AMD', 'AZN', 'MDL', 'TJS', 'TMT'];
+            
+            // Try to find quote currency in the symbol
+            for (const quote of quoteCurrencies) {
+                if (symbol.includes(quote)) {
+                    let base = symbol.replace(quote, '');
+                    
+                    // Clean up the base symbol by removing common separators
+                    base = base.replace(/[_-]/g, ''); // Remove underscores and hyphens
+                    base = base.replace(/[0-9]+$/, ''); // Remove trailing numbers
+                    base = base.replace(/^[0-9]+/, ''); // Remove leading numbers
+                    
+                    return `${base}/${quote}`;
+                }
+            }
+            
+            // If no common quote found, try to split by common patterns
+            if (symbol.length >= 6) {
+                // Try to split in the middle for common patterns
+                const mid = Math.floor(symbol.length / 2);
+                let possibleBase = symbol.substring(0, mid);
+                const possibleQuote = symbol.substring(mid);
+                
+                // Clean up the base symbol
+                possibleBase = possibleBase.replace(/[_-]/g, ''); // Remove underscores and hyphens
+                possibleBase = possibleBase.replace(/[0-9]+$/, ''); // Remove trailing numbers
+                possibleBase = possibleBase.replace(/^[0-9]+/, ''); // Remove leading numbers
+                
+                // Check if it looks like a valid trading pair
+                if (possibleBase.length >= 2 && possibleQuote.length >= 2) {
+                    return `${possibleBase}/${possibleQuote}`;
+                }
+            }
+            
+            // If no pattern found, clean up the symbol and return
+            let cleanedSymbol = symbol.replace(/[_-]/g, ''); // Remove underscores and hyphens
+            cleanedSymbol = cleanedSymbol.replace(/[0-9]+$/, ''); // Remove trailing numbers
+            cleanedSymbol = cleanedSymbol.replace(/^[0-9]+/, ''); // Remove leading numbers
+            return cleanedSymbol;
+        }
+
+        function normalizeTradingPair(tradingPair) {
+            // Convert to uppercase for consistency
+            let normalized = tradingPair.toUpperCase();
+            
+            // Remove any extra spaces around the slash
+            normalized = normalized.replace(/\s*\/\s*/g, '/');
+            
+            // Ensure proper format (BASE/QUOTE)
+            if (normalized.includes('/')) {
+                const parts = normalized.split('/');
+                if (parts.length === 2) {
+                    const base = parts[0].trim();
+                    const quote = parts[1].trim();
+                    
+                    // Clean up base and quote
+                    const cleanBase = base.replace(/[_-]/g, '').replace(/[0-9]+$/, '').replace(/^[0-9]+/, '');
+                    const cleanQuote = quote.replace(/[_-]/g, '').replace(/[0-9]+$/, '').replace(/^[0-9]+/, '');
+                    
+                    return `${cleanBase}/${cleanQuote}`;
+                }
+            }
+            
+            return normalized;
+        }
+
+        function filterData() {
+            const coinFilter = document.getElementById('coinFilter').value.toLowerCase();
+            const minSpreadFilter = parseFloat(document.getElementById('minSpreadFilter').value) || 0;
+            const sortBy = document.getElementById('sortBy').value;
+            const showOnly = document.getElementById('showOnly').value;
+
+            filteredData = fundingData.filter(item => {
+                const matchesPair = item.tradingPair.toLowerCase().includes(coinFilter);
+                const matchesMinSpread = Math.abs(item.actualSpread) >= minSpreadFilter;
+                const matchesShowOnly = showOnly === 'all' || 
+                    (showOnly === 'positive' && item.actualSpread > 0) ||
+                    (showOnly === 'negative' && item.actualSpread < 0) ||
+                    (showOnly === 'meaningful' && item.nonZeroRates.length >= 2);
+                
+                // Only show trading pairs that have at least 2 non-zero rates (to have a meaningful spread)
+                const hasMeaningfulSpread = item.nonZeroRates.length >= 2;
+                
+                return matchesPair && matchesMinSpread && matchesShowOnly && hasMeaningfulSpread;
+            });
+
+            // Sort data
+            filteredData.sort((a, b) => {
+                switch (sortBy) {
+                    case 'maxSpread':
+                        return Math.abs(b.actualSpread) - Math.abs(a.actualSpread);
+                    case 'coin':
+                        return a.tradingPair.localeCompare(b.tradingPair);
+                    case 'exchanges':
+                        return b.availableExchanges.length - a.availableExchanges.length;
+                    default:
+                        return 0;
+                }
+            });
+
+            updateTable();
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('fundingTableBody');
+            tbody.innerHTML = '';
+
+            filteredData.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                
+                // Trading Pair column
+                const coinCell = document.createElement('td');
+                coinCell.className = 'px-6 py-4 whitespace-nowrap';
+                const originalSymbols = Array.from(item.originalSymbols).slice(0, 3); // Show first 3 symbols
+                const symbolCount = item.originalSymbols.size;
+                coinCell.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="coin-logo bg-gray-200 text-gray-700">${item.tradingPair.charAt(0)}</div>
+                        <div class="text-sm font-medium text-gray-900">
+                            ${item.tradingPair}
+                            <br><span class="text-xs text-gray-500">${item.availableExchanges.length} exchanges</span>
+                            ${symbolCount > 1 ? `<br><span class="text-xs text-blue-500">${originalSymbols.join(', ')}${symbolCount > 3 ? ` +${symbolCount - 3} more` : ''}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+                row.appendChild(coinCell);
+
+                // Max Spread column
+                const maxSpreadCell = document.createElement('td');
+                maxSpreadCell.className = 'px-6 py-4 whitespace-nowrap';
+                const spreadClass = item.actualSpread > 0 ? 'funding-positive' : 'funding-neutral';
+                const spreadText = item.nonZeroRates.length >= 2 ? 
+                    `${(item.actualSpread * 100).toFixed(4)}%` : 
+                    'No spread';
+                maxSpreadCell.innerHTML = `
+                    <div class="text-sm font-medium ${spreadClass}">
+                        ${spreadText}
+                        ${item.nonZeroRates.length >= 2 ? `<br><span class="text-xs text-gray-500">(${item.nonZeroRates.length} rates: ${(item.minSpread * 100).toFixed(4)}% to ${(item.maxSpread * 100).toFixed(4)}%)</span>` : ''}
+                    </div>
+                `;
+                row.appendChild(maxSpreadCell);
+
+                // Exchange columns
+                exchanges.forEach(exchange => {
+                    const exchangeCell = document.createElement('td');
+                    exchangeCell.className = 'px-6 py-4 whitespace-nowrap';
+                    
+                    if (item.exchanges[exchange] !== undefined) {
+                        const rate = item.exchanges[exchange];
+                        const rateClass = rate > 0 ? 'funding-positive' : rate < 0 ? 'funding-negative' : 'funding-neutral';
+                        const isMaxSpread = Math.abs(rate) === Math.abs(item.maxSpread);
+                        const isPositive = rate > 0;
+                        const isNonZero = rate !== 0;
+                        
+                        exchangeCell.innerHTML = `
+                            <div class="text-sm ${rateClass} ${isPositive ? 'underlined' : ''} ${isMaxSpread ? 'font-bold' : ''} ${isNonZero ? 'border-l-2 border-blue-200 pl-1' : ''}">
+                                ${(rate * 100).toFixed(4)}%
+                                ${isNonZero ? '<span class="text-xs text-blue-500">●</span>' : ''}
+                            </div>
+                        `;
+                        
+                        if (isMaxSpread && isNonZero) {
+                            row.classList.add('highlight-row');
+                        }
+                    } else {
+                        exchangeCell.innerHTML = '<div class="text-sm text-gray-400">-</div>';
+                    }
+                    
+                    row.appendChild(exchangeCell);
+                });
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStats() {
+            const meaningfulSpreads = fundingData.filter(item => item.nonZeroRates.length >= 2);
+            document.getElementById('totalCoins').textContent = meaningfulSpreads.length;
+            document.getElementById('totalExchanges').textContent = exchanges.length;
+            
+            if (meaningfulSpreads.length > 0) {
+                const maxSpread = Math.max(...meaningfulSpreads.map(item => Math.abs(item.actualSpread)));
+                document.getElementById('maxSpread').textContent = `${(maxSpread * 100).toFixed(4)}%`;
+            } else {
+                document.getElementById('maxSpread').textContent = '0%';
+            }
+        }
+
+        function updateLastUpdate() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+        }
+
+        function sortTable(column) {
+            // Implementation for table sorting
+            console.log('Sorting by:', column);
+        }
+    </script>
+</body>
+</html> 

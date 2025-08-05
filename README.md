@@ -4,10 +4,11 @@ A real-time funding rate monitoring application for centralized exchanges (CEX) 
 
 ## Features
 
-- **Multi-Exchange Support**: Currently supports Binance, Bybit, and OKX
+- **Multi-Exchange Support**: Currently supports Binance, Bybit, OKX, MEXC, BitGet, Gate.io, Deribit, XT, KuCoin, and more
 - **Real-time Monitoring**: Automatic refresh every 30 seconds
 - **Historical Data Logging**: Automatic logging of funding rates to individual files per trading pair
 - **Modern Web Interface**: Built with Tailwind CSS and responsive design
+- **Funding Spread Analysis**: New dedicated page for analyzing funding rate spreads across exchanges
 - **Advanced Filtering**: Filter by exchange, symbol, and funding rate direction
 - **Sorting Options**: Sort by funding rate, symbol, exchange, or next funding time
 - **RESTful API**: JSON API endpoints for programmatic access
@@ -53,6 +54,23 @@ go run .
 ```
 
 5. Open your browser and navigate to `http://localhost:8080`
+
+## Web Interface
+
+The application provides two main web pages:
+
+### Overview Page (`/`)
+- Real-time funding rate monitoring
+- Filtering and sorting capabilities
+- Historical data analysis
+- Alert settings
+
+### Funding Spread Analysis (`/funding.html`)
+- Cross-exchange funding rate comparison
+- Maximum spread calculation per coin
+- Visual indicators for positive/negative spreads
+- Exchange-specific funding rate display
+- Advanced filtering and sorting options
 
 ## Configuration
 
