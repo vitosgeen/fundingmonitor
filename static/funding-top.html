@@ -417,7 +417,6 @@
                 const change = ((lastRate - firstRate) / Math.abs(firstRate)) * 100;
                 // define changing if the change is more than 3%
                 const changing = Math.abs(change) > alertThresholdChanging;
-                console.log('key:', key, 'change', change, 'direction', direction, 'changing', changing, 'alertThresholdChanging', alertThresholdChanging);
                 // if the change is more than 3%, ledding row to be highlighted
                 let elementRowId = `row-${key}`;
                 if (changing) {
