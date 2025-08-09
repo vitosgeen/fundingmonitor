@@ -23,10 +23,10 @@
                 <div class="flex justify-between items-center py-6">
                     <div class="flex items-center">
                         <i class="fas fa-chart-line text-blue-600 text-2xl mr-3"></i>
-                        <h1 class="text-2xl font-bold text-gray-900">Funding Monitor</h1>
+                        <h1 class="text-2xl font-bold text-gray-900">Funding Monitor TOP</h1>
                         <nav class="ml-8 flex space-x-4">
-                            <a href="/" class="text-blue-600 hover:text-blue-700 px-3 py-2 rounded-md text-sm font-medium">Overview</a>
-                            <a href="/funding-top.html" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">Top Funding Rates</a>
+                            <a href="/" class="text-gray-600 px-3 py-2 rounded-md text-sm font-medium">Overview</a>
+                            <a href="/funding-top.html" class="text-blue-500 hover:text-blue-700 px-3 py-2 rounded-md text-sm font-medium">Top Funding Rates</a>
                             <a href="/funding.html" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">Spread Analysis</a>
                         </nav>
                     </div>
@@ -171,6 +171,13 @@
                         </div>
                     </div>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Alert Threshold of change (%)</label>
+                        <input type="number" id="alertThresholdChanging" value="1" step="0.1" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Alert when funding rate changes by this percentage</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Funding Rates Table -->
@@ -204,6 +211,7 @@
         let filteredData = [];
         let previousFundingData = new Map(); // Store previous funding rates
         let alertThreshold = 0.001; // 0.1% change threshold for alerts
+        let alertThresholdChanging = 3; // 3% change threshold for alerts
         let alertEnabled = true;
         let alertHistory = [];
 
@@ -228,12 +236,15 @@
             document.getElementById('alertThreshold').addEventListener('change', function() {
                 alertThreshold = parseFloat(this.value) / 100; // Convert percentage to decimal
             });
+            document.getElementById('alertThresholdChanging').addEventListener('change', function() {
+                alertThresholdChanging = parseFloat(this.value); 
+            });
             document.getElementById('testAlertBtn').addEventListener('click', testAlert);
         }
 
         async function loadFundingRates() {
             try {
-                const response = await fetch('/api/funding');
+                const response = await fetch('/api/funding-top');
                 const data = await response.json();
                 
                 const newFundingData = data.rates || [];
@@ -312,15 +323,19 @@
             });
 
             renderTable();
+            saveToLocalStorage();
+            makeAnalytics();
         }
 
         function renderTable() {
             const tbody = document.getElementById('fundingTableBody');
             tbody.innerHTML = '';
-
+            
             filteredData.forEach(rate => {
+                const key = `${rate.symbol}-${rate.exchange}`;
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-gray-50';
+                row.id = `row-${key}`;
                 
                 const fundingRateClass = rate.funding_rate > 0 ? 'funding-positive' : 
                                        rate.funding_rate < 0 ? 'funding-negative' : 'funding-neutral';
@@ -347,6 +362,104 @@
                 
                 tbody.appendChild(row);
             });
+        }
+
+        function saveToLocalStorage() {
+            fundingDataStorage = localStorage.getItem('fundingData');
+            if (fundingDataStorage) {
+                fundingData = JSON.parse(fundingDataStorage);
+            } else {
+                fundingData = {};
+            }
+            for(const filteredItem of filteredData) {
+                let key = `${filteredItem.symbol}-${filteredItem.exchange}`;
+                let value = filteredItem.funding_rate;
+                if (!fundingData[key]) {
+                    fundingData[key] = new Array();
+                }
+                fundingData[key].push(value);
+            }
+            // clean up old data from fundingData that isn't in filteredData
+            for (const key in fundingData) {
+                if (!filteredData.some(rate => `${rate.symbol}-${rate.exchange}` === key)) {
+                    delete fundingData[key];
+                }
+            }
+
+            // clean up old data from fundingData, left only the latest 10 entries for each symbol-exchange pair
+            for (const key in fundingData) {
+                if (fundingData[key].length > 10) {
+                    fundingData[key] = fundingData[key].slice(-10);
+                }
+            }
+            
+            // // Save the updated funding data to localStorage
+            localStorage.setItem('fundingData', JSON.stringify(fundingData));
+        }
+        function makeAnalytics() {
+            // get funding data from localStorage
+            const fundingDataStorage = localStorage.getItem('fundingData');
+            if (!fundingDataStorage) {
+                console.log('No funding data found in localStorage');
+                return;
+            }
+
+            const fundingData = JSON.parse(fundingDataStorage);
+            const analytics = {};
+            let hasChanging = false;
+            for (const key in fundingData) {
+                const rates = fundingData[key];
+                // Calculate direction of funding rate trend
+                const lastRate = rates[rates.length - 1];
+                const firstRate = rates[0];
+                const direction = lastRate > firstRate ? 'increased' : lastRate < firstRate ? 'decreased' : 'neutral';
+                // Calculate percentage change
+                const change = ((lastRate - firstRate) / Math.abs(firstRate)) * 100;
+                // define changing if the change is more than 3%
+                const changing = Math.abs(change) > alertThresholdChanging;
+                console.log('key:', key, 'change', change, 'direction', direction, 'changing', changing, 'alertThresholdChanging', alertThresholdChanging);
+                // if the change is more than 3%, ledding row to be highlighted
+                let elementRowId = `row-${key}`;
+                if (changing) {
+                    hasChanging = true;
+                    highlightChangingRow(elementRowId);
+                } else {
+                    unhighlightChangingRow(elementRowId);
+                }
+            }
+
+            if (alertEnabled && hasChanging) {
+                makeSound();
+            }
+        }
+        function makeSound() {
+            alertAudio = new (window.AudioContext || window.webkitAudioContext)();
+            
+            const oscillator = alertAudio.createOscillator();
+            const gainNode = alertAudio.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(alertAudio.destination);
+            
+            oscillator.frequency.setValueAtTime(440, alertAudio.currentTime); // A
+            oscillator.frequency.setValueAtTime(880, alertAudio.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.3, alertAudio.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, alertAudio.currentTime + 0.5);
+            
+            oscillator.start(alertAudio.currentTime);
+            oscillator.stop(alertAudio.currentTime + 0.5);
+        }
+        function highlightChangingRow(idRow) {
+            const elementRow = document.getElementById(idRow);
+            if (elementRow) {
+                elementRow.classList.add('bg-yellow-100');
+            }
+        }
+        function unhighlightChangingRow(idRow) {
+            const elementRow = document.getElementById(idRow);
+            if (elementRow) {
+                elementRow.classList.remove('bg-yellow-100');
+            }
         }
 
         function updateLastUpdate() {

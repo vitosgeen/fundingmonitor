@@ -3,11 +3,12 @@ package delivery
 import (
 	"encoding/json"
 	"fmt"
-	"fundingmonitor/internal/domain"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"fundingmonitor/internal/domain"
 
 	"github.com/gorilla/mux"
 )
@@ -37,6 +38,71 @@ func (h *FundingHandler) GetFundingRates(w http.ResponseWriter, r *http.Request)
 		"rates":     rates,
 	}
 
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *FundingHandler) GetFundingRatesTop(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// get top funding rates percentage value
+	topValue := r.URL.Query().Get("top")
+	if topValue == "" {
+		// Default to 0.4%
+		topValue = "0.004" // Default value if not provided
+	} else {
+		// Ensure the value is a valid percentage
+		if !strings.HasPrefix(topValue, "0.") {
+			http.Error(w, "Invalid top value format. Use a decimal percentage (e.g., 0.004 for 0.4%)", http.StatusBadRequest)
+			return
+		}
+		// convert perentage to decimal
+		if strings.HasSuffix(topValue, "%") {
+			topValue = strings.TrimSuffix(topValue, "%")
+			topValue = strings.TrimSpace(topValue)
+			if topValue == "" {
+				http.Error(w, "Invalid top value format. Use a decimal percentage (e.g., 0.004 for 0.4%)", http.StatusBadRequest)
+				return
+			}
+			// Convert percentage to decimal
+			parsedValue, err := strconv.ParseFloat(topValue, 64)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Invalid top value: %v", err), http.StatusBadRequest)
+				return
+			}
+			topValue = fmt.Sprintf("%f", parsedValue/100)
+		}
+	}
+	// Convert topValue to float64
+	topRate, err := strconv.ParseFloat(topValue, 64)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid top value: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	rates, err := h.multiExchangeUseCase.GetAllFundingRates()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get top funding rates: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	topRates := make([]domain.FundingRate, 0, len(rates))
+	for _, rate := range rates {
+		absFaundingRate := rate.FundingRate
+		if absFaundingRate < 0 {
+			absFaundingRate = -absFaundingRate
+		}
+		if absFaundingRate > topRate { // Example threshold for top rates
+			topRates = append(topRates, rate)
+		}
+	}
+
+	response := map[string]interface{}{
+		"timestamp": time.Now().Unix(),
+		"rates":     topRates,
+	}
+
+	fmt.Println("Top funding rates:", topRates, topRate)
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -108,11 +174,11 @@ func (h *FundingHandler) GetSymbolLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	response := map[string]interface{}{
-		"symbol":     symbol,
-		"date":       date,
-		"timestamp":  time.Now().Unix(),
-		"entries":    logEntries,
-		"count":      len(logEntries),
+		"symbol":    symbol,
+		"date":      date,
+		"timestamp": time.Now().Unix(),
+		"entries":   logEntries,
+		"count":     len(logEntries),
 	}
 
 	json.NewEncoder(w).Encode(response)
@@ -122,13 +188,13 @@ func (h *FundingHandler) GetSymbolLogs(w http.ResponseWriter, r *http.Request) {
 func parseLogContent(content string) []map[string]interface{} {
 	var entries []map[string]interface{}
 	lines := strings.Split(content, "\n")
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		
+
 		// Parse log line format: [timestamp] Symbol: symbol, Exchange: exchange, Funding Rate: rate, Mark Price: price, Index Price: price
 		if strings.HasPrefix(line, "[") && strings.Contains(line, "] Symbol: ") {
 			entry := parseLogLine(line)
@@ -137,7 +203,7 @@ func parseLogContent(content string) []map[string]interface{} {
 			}
 		}
 	}
-	
+
 	return entries
 }
 
@@ -148,18 +214,18 @@ func parseLogLine(line string) map[string]interface{} {
 	if timestampEnd == -1 {
 		return nil
 	}
-	
+
 	timestampStr := line[1:timestampEnd]
-	
+
 	// Extract the rest of the data after the timestamp
 	dataPart := line[timestampEnd+2:] // Skip "] "
-	
+
 	// Parse the comma-separated fields
 	fields := strings.Split(dataPart, ", ")
 	entry := map[string]interface{}{
 		"timestamp": timestampStr,
 	}
-	
+
 	for _, field := range fields {
 		field = strings.TrimSpace(field)
 		if strings.Contains(field, ": ") {
@@ -167,7 +233,7 @@ func parseLogLine(line string) map[string]interface{} {
 			if len(parts) == 2 {
 				key := parts[0]
 				value := parts[1]
-				
+
 				// Convert numeric values
 				if key == "Funding Rate" || key == "Mark Price" || key == "Index Price" {
 					if num, err := strconv.ParseFloat(value, 64); err == nil {
@@ -181,7 +247,7 @@ func parseLogLine(line string) map[string]interface{} {
 			}
 		}
 	}
-	
+
 	return entry
 }
 

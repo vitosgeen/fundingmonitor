@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"fundingmonitor/internal/delivery"
-	"fundingmonitor/internal/domain"
-	"fundingmonitor/internal/infrastructure"
-	"fundingmonitor/internal/usecase"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"fundingmonitor/internal/delivery"
+	"fundingmonitor/internal/domain"
+	"fundingmonitor/internal/infrastructure"
+	"fundingmonitor/internal/usecase"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -36,7 +37,7 @@ func main() {
 	if logDir == "" {
 		logDir = "funding_logs"
 	}
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		logger.Fatalf("Failed to create log directory: %v", err)
 	}
 
@@ -85,6 +86,7 @@ func startServer(handler *delivery.FundingHandler, config *domain.Config, logger
 
 	// API routes
 	router.HandleFunc("/api/funding", handler.GetFundingRates).Methods("GET")
+	router.HandleFunc("/api/funding-top", handler.GetFundingRatesTop).Methods("GET")
 	router.HandleFunc("/api/funding/{exchange}", handler.GetExchangeFunding).Methods("GET")
 	router.HandleFunc("/api/health", handler.HealthCheck).Methods("GET")
 	router.HandleFunc("/api/logs/{symbol}", handler.GetSymbolLogs).Methods("GET")
