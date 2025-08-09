@@ -13,11 +13,11 @@ import (
 
 // MockMultiExchangeUseCase for testing
 type MockMultiExchangeUseCase struct {
-	rates     []domain.FundingRate
-	ratesErr  error
+	rates        []domain.FundingRate
+	ratesErr     error
 	exchangeInfo map[string]domain.ExchangeInfo
-	logFiles  []domain.LogFile
-	logErr    error
+	logFiles     []domain.LogFile
+	logErr       error
 }
 
 func (m *MockMultiExchangeUseCase) GetAllFundingRates() ([]domain.FundingRate, error) {
@@ -48,6 +48,10 @@ func (m *MockMultiExchangeUseCase) GetSymbolLogs(symbol string, date string) ([]
 
 func (m *MockMultiExchangeUseCase) GetAllLogs() ([]domain.LogFile, error) {
 	return m.logFiles, m.logErr
+}
+
+func (m *MockMultiExchangeUseCase) GetHistoricalFundingRates(symbol string, exchange string) ([]domain.FundingRateHistory, error) {
+	return []domain.FundingRateHistory{}, m.logErr
 }
 
 func TestFundingHandler_GetFundingRates(t *testing.T) {
@@ -160,4 +164,4 @@ func TestFundingHandler_GetExchangeFunding(t *testing.T) {
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("Expected status %d, got %d", http.StatusNotFound, status)
 	}
-} 
+}

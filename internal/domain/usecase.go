@@ -8,4 +8,5 @@ type MultiExchangeUseCaseInterface interface {
 	LogAllFundingRates() error
 	GetSymbolLogs(symbol string, date string) ([]byte, error)
 	GetAllLogs() ([]LogFile, error)
-} 
+	GetHistoricalFundingRates(symbol string, exchange string) ([]FundingRateHistory, error)
+}

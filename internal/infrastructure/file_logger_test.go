@@ -78,9 +78,7 @@ func TestFileLogger_GetSymbolLogs(t *testing.T) {
 	date := time.Now().Format("02-01-2006")
 	logFile := filepath.Join(symbolDir, date+".log")
 
-	testContent := `[2024-01-01 00:00:00] Symbol: BTCUSDT
-  Exchange: binance, Funding Rate: 0.000100, Mark Price: 50000.00, Index Price: 50000.00
-
+	testContent := `[2024-01-01 00:00:00] Symbol: BTCUSDT, Exchange: binance, Funding Rate: 0.000100, Mark Price: 50000.00, Index Price: 50000.00
 `
 	if err := os.WriteFile(logFile, []byte(testContent), 0644); err != nil {
 		t.Fatal(err)
@@ -119,9 +117,7 @@ func TestFileLogger_GetAllLogs(t *testing.T) {
 		}
 
 		logFile := filepath.Join(symbolDir, date+".log")
-		testContent := `[2024-01-01 00:00:00] Symbol: ` + symbol + `
-  Exchange: binance, Funding Rate: 0.000100, Mark Price: 50000.00, Index Price: 50000.00
-
+		testContent := `[2024-01-01 00:00:00] Symbol: ` + symbol + `, Exchange: binance, Funding Rate: 0.000100, Mark Price: 50000.00, Index Price: 50000.00
 `
 		if err := os.WriteFile(logFile, []byte(testContent), 0644); err != nil {
 			t.Fatal(err)

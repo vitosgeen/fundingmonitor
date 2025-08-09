@@ -21,22 +21,22 @@ func NewMultiExchangeUseCase(exchanges map[string]domain.ExchangeRepository, log
 // GetAllFundingRates retrieves funding rates from all exchanges
 func (m *MultiExchangeUseCase) GetAllFundingRates() ([]domain.FundingRate, error) {
 	var allRates []domain.FundingRate
-	
+
 	for name, exchange := range m.exchanges {
 		rates, err := exchange.GetFundingRates()
 		if err != nil {
 			// Log error but continue with other exchanges
 			continue
 		}
-		
+
 		// Add exchange name to each rate
 		for i := range rates {
 			rates[i].Exchange = name
 		}
-		
+
 		allRates = append(allRates, rates...)
 	}
-	
+
 	return allRates, nil
 }
 
@@ -46,21 +46,21 @@ func (m *MultiExchangeUseCase) GetExchangeFundingRates(exchangeName string) ([]d
 	if !exists {
 		return nil, domain.ErrExchangeNotFound
 	}
-	
+
 	return exchange.GetFundingRates()
 }
 
 // GetExchangeInfo returns information about all exchanges
 func (m *MultiExchangeUseCase) GetExchangeInfo() map[string]domain.ExchangeInfo {
 	info := make(map[string]domain.ExchangeInfo)
-	
+
 	for name, exchange := range m.exchanges {
 		info[name] = domain.ExchangeInfo{
 			Name:    exchange.GetName(),
 			Healthy: exchange.IsHealthy(),
 		}
 	}
-	
+
 	return info
 }
 
@@ -96,4 +96,9 @@ func (m *MultiExchangeUseCase) GetSymbolLogs(symbol string, date string) ([]byte
 // GetAllLogs retrieves all available logs
 func (m *MultiExchangeUseCase) GetAllLogs() ([]domain.LogFile, error) {
 	return m.logRepo.GetAllLogs()
-} 
+}
+
+// GetHistoricalFundingRates retrieves historical funding rates for a symbol and exchange
+func (m *MultiExchangeUseCase) GetHistoricalFundingRates(symbol string, exchange string) ([]domain.FundingRateHistory, error) {
+	return m.logRepo.GetHistoricalFundingRates(symbol, exchange)
+}

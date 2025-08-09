@@ -139,3 +139,8 @@ func (e *ElasticsearchLogger) GetAllLogs() ([]domain.LogFile, error) {
 		},
 	}, nil
 }
+
+func (e *ElasticsearchLogger) GetHistoricalFundingRates(symbol string, exchange string) ([]domain.FundingRateHistory, error) {
+	// Not implemented for ElasticsearchLogger
+	return []domain.FundingRateHistory{}, nil
+}

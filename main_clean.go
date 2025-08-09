@@ -89,6 +89,7 @@ func startServer(handler *delivery.FundingHandler, config *domain.Config, logger
 	router.HandleFunc("/api/health", handler.HealthCheck).Methods("GET")
 	router.HandleFunc("/api/logs/{symbol}", handler.GetSymbolLogs).Methods("GET")
 	router.HandleFunc("/api/logs", handler.GetAllLogs).Methods("GET")
+	router.HandleFunc("/api/logs/{symbol}/history", handler.GetHistoricalFundingRates).Methods("GET")
 
 	// WebSocket endpoint for real-time updates
 	router.HandleFunc("/ws/funding", handler.FundingWebSocket)

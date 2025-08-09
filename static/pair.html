@@ -110,13 +110,59 @@
                 </div>
             </div>
 
+            <!-- Alert Settings -->
+            <div class="bg-white rounded-lg shadow mb-8">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Alert Settings</h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Alert Level (%)</label>
+                            <input type="number" id="alertLevel" step="0.001" value="0.01" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-500 mt-1">Trigger when funding rate crosses this level</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Alert Sound</label>
+                            <select id="alertSound" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                                <option value="notification">Notification</option>
+                                <option value="beep">Beep</option>
+                                <option value="chime">Chime</option>
+                                <option value="none">No Sound</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button id="testAlertBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm">
+                                <i class="fas fa-bell mr-2"></i>Test Alert
+                            </button>
+                        </div>
+                    </div>
+                    <div id="alertStatus" class="mt-4 p-3 bg-green-100 border border-green-300 rounded-md hidden">
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                            <span class="text-sm text-green-800">Alert system active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Historical Data -->
             <div class="bg-white rounded-lg shadow">
                 <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Historical Funding Rates</h3>
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-medium text-gray-900">Historical Funding Rates</h3>
+                        <div class="flex items-center space-x-4">
+                            <label class="text-sm font-medium text-gray-700">Date:</label>
+                            <input type="date" id="dateSelector" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+                            <button id="loadDateBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm">
+                                Load
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="p-6">
-                    <div id="historicalData" class="text-center text-gray-500">
+                    <canvas id="fundingChart" height="80"></canvas>
+                    <div id="historicalData" class="text-center text-gray-500 hidden">
                         <i class="fas fa-chart-line text-4xl mb-4"></i>
                         <p>Historical data will be available soon</p>
                     </div>
@@ -138,8 +184,10 @@
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         let pairData = null;
+        let fundingChart = null;
         const urlParams = new URLSearchParams(window.location.search);
         const symbol = urlParams.get('symbol');
         const exchange = urlParams.get('exchange');
@@ -156,8 +204,224 @@
             setInterval(loadPairData, 30000); // Refresh every 30 seconds
         });
 
+        // Alert system variables
+        let lastFundingRate = null;
+        let alertTriggered = false;
+        let alertAudio = null;
+
         function setupEventListeners() {
             document.getElementById('refreshBtn').addEventListener('click', loadPairData);
+            document.getElementById('loadDateBtn').addEventListener('click', loadSpecificDate);
+            document.getElementById('testAlertBtn').addEventListener('click', testAlert);
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dateSelector').value = today;
+            
+            // Initialize alert system
+            initializeAlertSystem();
+        }
+
+        function initializeAlertSystem() {
+            // Create audio context for sounds
+            try {
+                alertAudio = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.log('Audio context not supported');
+            }
+            
+            // Show alert status
+            document.getElementById('alertStatus').classList.remove('hidden');
+        }
+
+        function testAlert() {
+            triggerAlert('Test Alert', 'This is a test alert for the funding rate monitoring system.');
+        }
+
+        function triggerAlert(title, message) {
+            // Play sound
+            const soundType = document.getElementById('alertSound').value;
+            if (soundType !== 'none') {
+                playAlertSound(soundType);
+            }
+            
+            // Show browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/favicon.ico',
+                    badge: '/favicon.ico'
+                });
+            } else if ('Notification' in window && Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification(title, {
+                            body: message,
+                            icon: '/favicon.ico',
+                            badge: '/favicon.ico'
+                        });
+                    }
+                });
+            }
+            
+            // Show in-page notification
+            showInPageNotification(title, message);
+        }
+
+        function playAlertSound(type) {
+            if (!alertAudio) return;
+            
+            const oscillator = alertAudio.createOscillator();
+            const gainNode = alertAudio.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(alertAudio.destination);
+            
+            switch (type) {
+                case 'beep':
+                    oscillator.frequency.setValueAtTime(800, alertAudio.currentTime);
+                    oscillator.frequency.setValueAtTime(600, alertAudio.currentTime + 0.1);
+                    break;
+                case 'chime':
+                    oscillator.frequency.setValueAtTime(523, alertAudio.currentTime); // C
+                    oscillator.frequency.setValueAtTime(659, alertAudio.currentTime + 0.1); // E
+                    oscillator.frequency.setValueAtTime(784, alertAudio.currentTime + 0.2); // G
+                    break;
+                case 'notification':
+                default:
+                    oscillator.frequency.setValueAtTime(440, alertAudio.currentTime); // A
+                    oscillator.frequency.setValueAtTime(880, alertAudio.currentTime + 0.1);
+                    break;
+            }
+            
+            gainNode.gain.setValueAtTime(0.3, alertAudio.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, alertAudio.currentTime + 0.5);
+            
+            oscillator.start(alertAudio.currentTime);
+            oscillator.stop(alertAudio.currentTime + 0.5);
+        }
+
+        function showInPageNotification(title, message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-3"></i>
+                    <div>
+                        <div class="font-bold">${title}</div>
+                        <div class="text-sm opacity-90">${message}</div>
+                    </div>
+                    <button class="ml-4 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (notification.parentElement) {
+                        notification.remove();
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        function checkFundingRateAlert(currentRate) {
+            if (lastFundingRate === null) {
+                lastFundingRate = currentRate;
+                return;
+            }
+            
+            const alertLevel = parseFloat(document.getElementById('alertLevel').value) / 100; // Convert percentage to decimal
+            const previousRate = lastFundingRate;
+            
+            // Check if funding rate crossed the alert level from below to above
+            if (previousRate < alertLevel && currentRate >= alertLevel) {
+                const ratePercent = (currentRate * 100).toFixed(4);
+                const alertTitle = `🚨 Funding Rate Alert - ${symbol}`;
+                const alertMessage = `Funding rate for ${symbol} has crossed ${(alertLevel * 100).toFixed(3)}% and is now ${ratePercent}%`;
+                
+                triggerAlert(alertTitle, alertMessage);
+                alertTriggered = true;
+                
+                // Log to console for debugging
+                console.log(`Alert triggered: ${symbol} funding rate crossed ${(alertLevel * 100).toFixed(3)}% (${ratePercent}%)`);
+            } else if (currentRate < alertLevel) {
+                // Reset alert trigger when rate goes back below level
+                if (alertTriggered) {
+                    console.log(`Alert reset: ${symbol} funding rate back below ${(alertLevel * 100).toFixed(3)}%`);
+                }
+                alertTriggered = false;
+            }
+            
+            lastFundingRate = currentRate;
+        }
+
+        // Add visual indicator for alert status
+        function updateAlertStatus() {
+            const alertStatus = document.getElementById('alertStatus');
+            if (alertTriggered) {
+                alertStatus.className = 'mt-4 p-3 bg-red-100 border border-red-300 rounded-md';
+                alertStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-600 mr-2"></i>
+                        <span class="text-sm text-red-800">Alert triggered - Funding rate above threshold</span>
+                    </div>
+                `;
+            } else {
+                alertStatus.className = 'mt-4 p-3 bg-green-100 border border-green-300 rounded-md';
+                alertStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                        <span class="text-sm text-green-800">Alert system active - Monitoring for threshold crossing</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadSpecificDate() {
+            const selectedDate = document.getElementById('dateSelector').value;
+            if (!selectedDate) return;
+            
+            try {
+                // Convert YYYY-MM-DD to DD-MM-YYYY format for the API
+                const [year, month, day] = selectedDate.split('-');
+                const formattedDate = `${day}-${month}-${year}`;
+                
+                const response = await fetch(`/api/logs/${symbol}?date=${formattedDate}`);
+                const data = await response.json();
+                
+                if (data.entries && data.entries.length > 0) {
+                    renderFundingChart(data.entries);
+                    document.getElementById('fundingChart').classList.remove('hidden');
+                    document.getElementById('historicalData').classList.add('hidden');
+                } else {
+                    document.getElementById('fundingChart').classList.add('hidden');
+                    document.getElementById('historicalData').classList.remove('hidden');
+                    document.getElementById('historicalData').innerHTML = `
+                        <i class="fas fa-calendar-times text-4xl mb-4"></i>
+                        <p>No data available for ${selectedDate}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading specific date:', error);
+                document.getElementById('fundingChart').classList.add('hidden');
+                document.getElementById('historicalData').classList.remove('hidden');
+                document.getElementById('historicalData').innerHTML = `
+                    <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                    <p>Error loading data for ${selectedDate}</p>
+                `;
+            }
         }
 
         async function loadPairData() {
@@ -165,26 +429,177 @@
                 const response = await fetch(`/api/logs/${symbol}`);
                 const data = await response.json();
                 
-                // Find the specific pair data
-                const pair = data.rates?.find(rate => 
-                    rate.symbol === symbol && rate.exchange === exchange
-                );
-                
-                if (pair) {
-                    pairData = pair;
+                if (data.entries && data.entries.length > 0) {
+                    // Get the latest entry for current data
+                    const latestEntry = data.entries[data.entries.length - 1];
+                    pairData = {
+                        symbol: data.symbol,
+                        exchange: latestEntry.Exchange,
+                        funding_rate: latestEntry['Funding Rate'],
+                        mark_price: latestEntry['Mark Price'],
+                        index_price: latestEntry['Index Price'],
+                        timestamp: latestEntry.timestamp
+                    };
+                    
                     updatePairInfo();
                     document.getElementById('status').textContent = 'Connected';
                     document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-green-500 rounded-full';
+                    
+                    // Check for funding rate alerts
+                    checkFundingRateAlert(pairData.funding_rate);
+                    updateAlertStatus();
+                    
+                    // Render the chart with historical data
+                    renderFundingChart(data.entries);
+                    document.getElementById('fundingChart').classList.remove('hidden');
+                    document.getElementById('historicalData').classList.add('hidden');
                 } else {
-                    document.getElementById('status').textContent = 'Pair not found';
-                    document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-red-500 rounded-full';
+                    document.getElementById('status').textContent = 'No data available';
+                    document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-yellow-500 rounded-full';
+                    document.getElementById('fundingChart').classList.add('hidden');
+                    document.getElementById('historicalData').classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Error loading pair data:', error);
                 document.getElementById('status').textContent = 'Disconnected';
                 document.getElementById('status').parentElement.querySelector('.w-3').className = 'w-3 h-3 bg-red-500 rounded-full';
+                document.getElementById('fundingChart').classList.add('hidden');
+                document.getElementById('historicalData').classList.remove('hidden');
             }
         }
+
+        function renderFundingChart(entries) {
+            // Filter entries by exchange if specified
+            const filteredEntries = exchange ? 
+                entries.filter(entry => entry.Exchange === exchange) : 
+                entries;
+            
+            if (filteredEntries.length === 0) {
+                document.getElementById('fundingChart').classList.add('hidden');
+                document.getElementById('historicalData').classList.remove('hidden');
+                return;
+            }
+
+            const ctx = document.getElementById('fundingChart').getContext('2d');
+            
+            // Sort entries by timestamp
+            const sortedEntries = filteredEntries.sort((a, b) => 
+                new Date(a.timestamp) - new Date(b.timestamp)
+            );
+            
+            const labels = sortedEntries.map(entry => {
+                const date = new Date(entry.timestamp);
+                return date.toLocaleTimeString();
+            });
+            
+            const fundingRates = sortedEntries.map(entry => entry['Funding Rate'] * 100); // Convert to percentage
+            const markPrices = sortedEntries.map(entry => entry['Mark Price']);
+            const indexPrices = sortedEntries.map(entry => entry['Index Price']);
+
+            if (fundingChart) {
+                fundingChart.destroy();
+            }
+
+            fundingChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Funding Rate (%)',
+                            data: fundingRates,
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: false,
+                            pointRadius: 3,
+                            tension: 0.2,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Mark Price',
+                            data: markPrices,
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: false,
+                            pointRadius: 2,
+                            tension: 0.2,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'Index Price',
+                            data: indexPrices,
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            fill: false,
+                            pointRadius: 2,
+                            tension: 0.2,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { 
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: { 
+                            mode: 'index', 
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.dataset.label === 'Funding Rate (%)') {
+                                        label += context.parsed.y.toFixed(4) + '%';
+                                    } else {
+                                        label += context.parsed.y.toFixed(2);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Time' },
+                            ticks: {
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: { 
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Funding Rate (%)' },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(4) + '%';
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Price' },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        }
+
+
 
         function updatePairInfo() {
             if (!pairData) return;
@@ -207,12 +622,13 @@
             document.getElementById('markPrice').textContent = pairData.mark_price ? pairData.mark_price.toFixed(2) : '-';
             document.getElementById('indexPrice').textContent = pairData.index_price ? pairData.index_price.toFixed(2) : '-';
             
-            const nextFundingTime = new Date(pairData.next_funding_time).toLocaleString();
-            document.getElementById('nextFunding').textContent = nextFundingTime;
+            // Calculate next funding time (8 hours from now, typical for crypto)
+            const now = new Date();
+            const nextFunding = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+            document.getElementById('nextFunding').textContent = nextFunding.toLocaleString();
             
-            const lastFundingRate = pairData.last_funding_rate ? 
-                (pairData.last_funding_rate * 100).toFixed(4) + '%' : '-';
-            document.getElementById('lastFunding').textContent = lastFundingRate;
+            // For last funding rate, we'll use the previous entry if available
+            document.getElementById('lastFunding').textContent = '-';
         }
     </script>
 </body>

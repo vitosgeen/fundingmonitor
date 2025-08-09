@@ -41,25 +41,14 @@ func (f *FileLogger) LogFundingRates(symbol string, rates []domain.FundingRate) 
 	}
 	defer file.Close()
 
-	// Write timestamp and symbol header
+	// Write each rate on a single line with timestamp
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	header := fmt.Sprintf("[%s] Symbol: %s\n", timestamp, symbol)
-	if _, err := file.WriteString(header); err != nil {
-		return fmt.Errorf("failed to write header to log file for %s: %w", symbol, err)
-	}
-
-	// Write each rate on a separate line
 	for _, rate := range rates {
-		rateLine := fmt.Sprintf("  Exchange: %s, Funding Rate: %.6f, Mark Price: %.2f, Index Price: %.2f\n",
-			rate.Exchange, rate.FundingRate, rate.MarkPrice, rate.IndexPrice)
+		rateLine := fmt.Sprintf("[%s] Symbol: %s, Exchange: %s, Funding Rate: %.6f, Mark Price: %.2f, Index Price: %.2f\n",
+			timestamp, symbol, rate.Exchange, rate.FundingRate, rate.MarkPrice, rate.IndexPrice)
 		if _, err := file.WriteString(rateLine); err != nil {
 			return fmt.Errorf("failed to write rate to log file for %s: %w", symbol, err)
 		}
-	}
-
-	// Write separator
-	if _, err := file.WriteString("\n"); err != nil {
-		return fmt.Errorf("failed to write separator to log file for %s: %w", symbol, err)
 	}
 
 	return nil
@@ -130,4 +119,54 @@ func (f *FileLogger) GetAllLogs() ([]domain.LogFile, error) {
 	}
 
 	return logFiles, nil
+}
+
+func (f *FileLogger) GetHistoricalFundingRates(symbol string, exchange string) ([]domain.FundingRateHistory, error) {
+	var history []domain.FundingRateHistory
+	pairDir := filepath.Join(f.logDir, symbol)
+	files, err := os.ReadDir(pairDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".log") {
+			continue
+		}
+		filename := filepath.Join(pairDir, file.Name())
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(content), "\n")
+		var currentTimestamp int64
+		for _, line := range lines {
+			if strings.HasPrefix(line, "[") && strings.Contains(line, "] Symbol: ") {
+				// Parse timestamp
+				endIdx := strings.Index(line, "]")
+				if endIdx > 1 {
+					tsStr := line[1:endIdx]
+					ts, err := time.Parse("2006-01-02 15:04:05", tsStr)
+					if err == nil {
+						currentTimestamp = ts.Unix()
+					}
+				}
+			} else if strings.Contains(line, "Exchange: "+exchange+",") {
+				// Parse funding rate
+				parts := strings.Split(line, ",")
+				for _, part := range parts {
+					part = strings.TrimSpace(part)
+					if strings.HasPrefix(part, "Funding Rate: ") {
+						frStr := strings.TrimPrefix(part, "Funding Rate: ")
+						var fr float64
+						fmt.Sscanf(frStr, "%f", &fr)
+						history = append(history, domain.FundingRateHistory{
+							Timestamp:   currentTimestamp,
+							FundingRate: fr,
+						})
+					}
+				}
+			}
+		}
+	}
+	return history, nil
 }

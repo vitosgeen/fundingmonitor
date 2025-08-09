@@ -7,10 +7,10 @@ import (
 
 // MockExchangeRepository implements domain.ExchangeRepository for testing
 type MockExchangeRepository struct {
-	name     string
-	healthy  bool
-	rates    []domain.FundingRate
-	err      error
+	name    string
+	healthy bool
+	rates   []domain.FundingRate
+	err     error
 }
 
 func (m *MockExchangeRepository) GetFundingRates() ([]domain.FundingRate, error) {
@@ -42,6 +42,10 @@ func (m *MockLogRepository) GetSymbolLogs(symbol string, date string) ([]byte, e
 
 func (m *MockLogRepository) GetAllLogs() ([]domain.LogFile, error) {
 	return m.logFiles, m.getErr
+}
+
+func (m *MockLogRepository) GetHistoricalFundingRates(symbol string, exchange string) ([]domain.FundingRateHistory, error) {
+	return []domain.FundingRateHistory{}, m.getErr
 }
 
 func TestMultiExchangeUseCase_GetAllFundingRates(t *testing.T) {
@@ -188,4 +192,4 @@ func TestMultiExchangeUseCase_LogAllFundingRates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-} 
+}
